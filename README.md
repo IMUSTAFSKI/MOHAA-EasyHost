@@ -1,4 +1,6 @@
+
 # MOHAA EasyHost
+<img width="791" height="960" alt="Github" src="https://github.com/user-attachments/assets/75b1fd8e-e5bf-476e-8204-f5942570046f" />
 
 A simple one-click server launcher for **Medal of Honor: Allied Assault**.
 

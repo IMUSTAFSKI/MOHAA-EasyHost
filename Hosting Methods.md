@@ -93,7 +93,8 @@ Nobody gets in without your click.
 
 The Script will start the server and detects the zerotire vpn like this
 
-(img)
+<img width="813" height="697" alt="ZeroTier Vpn" src="https://github.com/user-attachments/assets/fca14cf0-be0e-48e8-a33c-e992fdc35b95" />
+
 ---
 
 ### Friend Setup — Each Player Does This Once
@@ -181,6 +182,8 @@ Place playit-windows-x86_64.exe inside your MOHAA folder. or run in the folder a
 ---
 
 *Step 4. Run both together*
+
+<img width="1917" height="1018" alt="playit gg" src="https://github.com/user-attachments/assets/1a51ffbe-a521-4b75-b214-72104d634ef6" />
 
 Every time you host:
 

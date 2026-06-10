@@ -93,7 +93,7 @@ Nobody gets in without your click.
 
 The Script will start the server and detects the zerotire vpn like this
 
-<img width="813" height="697" alt="ZeroTier Vpn" src="https://github.com/user-attachments/assets/fca14cf0-be0e-48e8-a33c-e992fdc35b95" />
+<img width="812" height="697" alt="ZeroTier Vpn2" src="https://github.com/user-attachments/assets/7201293b-3246-4dee-b8c2-c54ac089e1c4" />
 
 ---
 

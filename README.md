@@ -2,7 +2,7 @@
 # MOHAA EasyHost
 <img width="791" height="960" alt="Github" src="https://github.com/user-attachments/assets/75b1fd8e-e5bf-476e-8204-f5942570046f" />
 
-A simple one-click server launcher for **Medal of Honor: Allied Assault**.
+A simple one-click server launcher for **Medal of Honor: Allied Assault**. Check The Hosting Methods.md
 
 This tool helps you host a private MOHAA server for your friends without typing long server commands or editing config files manually.
 
@@ -45,7 +45,7 @@ Do not upload or share:
 * Game assets
 * Cracks or serials
 
-This repository only contains the launcher script.
+This repository only contains the launcher script. also check Hosting Methods.md
 
 ---
 
@@ -127,54 +127,7 @@ Then run the launcher again.
 
 ## How to Host a Server
 
-When you open the launcher, it will start the server automatically.
-
-You will see a command like this:
-
-```txt
-connect YOUR-IP:12203
-```
-
-Send that command to your friends.
-
----
-
-## How Friends Join
-
-Your friends should:
-
-1. Open MOHAA
-2. Press the console key:
-
-```txt
-~
-```
-
-3. Type the connect command:
-
-```txt
-connect YOUR-IP:12203
-```
-
-4. Press Enter
-
-Example:
-
-```txt
-connect 123.45.67.89:12203
-```
-
----
-
-## Playing on LAN or VPN
-
-For LAN or VPN play, use the local/VPN command shown in the launcher.
-
-Example:
-
-```txt
-connect 192.168.1.20:12203
-```
+Check Hosting Methods.md
 
 This works well with:
 
@@ -183,21 +136,9 @@ This works well with:
 * ZeroTier
 * Hamachi
 * Tailscale
-
----
-
-## Playing Over the Internet
-
-For public internet hosting, you usually need to open this port on your router:
-
-```txt
-UDP 12203
-```
-
-Forward UDP port `12203` to the PC that is hosting the server.
-
-Also allow `MOHAA_server.exe` through Windows Firewall.
-
+* Playit.gg
+* etc
+  
 ---
 
 ## Main Menu
@@ -354,6 +295,7 @@ Try:
 This repository should contain only:
 
 ```txt
+Hosting Methods.md
 README.md
 LICENSE
 IMUSTAFSKI Server Runner.ps1

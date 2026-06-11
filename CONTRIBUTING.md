@@ -131,7 +131,7 @@ In the description, explain:
 Pull requests are more likely to be accepted if they:
 
 - Fix a real bug with a clear description
-- Add a feature that was already requested in Issues
+- Add a feature that was already requested in Issues, usefull Feature or Tui enhancments 
 - Follow the existing code style
 - Do not add unnecessary dependencies
 - Work on Windows 10 and Windows 11

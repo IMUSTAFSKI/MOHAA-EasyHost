@@ -26,7 +26,6 @@ MOHAA EasyHost can:
 * Copy the friend command to your clipboard
 * Change server name, password, maps, time limit, players, and port
 * Change gameplay settings like speed, gravity, cheats, and weapon respawn
-* Apply simple widescreen and video settings
 * Restart or stop the server from the menu
 
 ---
@@ -148,13 +147,14 @@ Use the arrow keys and Enter.
 You can also press the hotkeys:
 
 ```txt
-[G] Open MOHAA
+[G] Open [game name]
 [C] Copy friend command
 [E] Server settings
-[V] Game settings
+[N] Network details
+[H] How to host
 [R] Restart server
-[B] Rebuild config
 [S] Stop server
+[M] Change game
 [Q] Quit launcher
 ```
 
@@ -203,22 +203,6 @@ dm/mohdm6, dm/mohdm7, dm/mohdm1
 One map means the server stays on that map.
 
 Multiple maps means the server rotates after the time limit.
-
----
-
-## Game Settings
-
-The game settings menu can apply:
-
-* 1080p widescreen
-* 1440p widescreen
-* Custom resolution
-* Fullscreen on/off
-* Texture settings
-* FOV setting
-* Skybox cleanup preset
-
-If the game is already open, restart MOHAA after applying video settings.
 
 ---
 
@@ -295,10 +279,12 @@ Try:
 This repository should contain only:
 
 ```txt
+Contributing.md
 Hosting Methods.md
 README.md
 LICENSE
 IMUSTAFSKI Server Runner.ps1
+version.text
 ```
 
 Do not upload the full game folder.

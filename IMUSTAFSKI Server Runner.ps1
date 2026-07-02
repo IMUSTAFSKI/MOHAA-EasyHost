@@ -4,7 +4,7 @@ param(
 )
 #ParamStating In
 $ErrorActionPreference = "Stop"
-$RunnerVersion = "1.0.1"
+$RunnerVersion = "1.0.2"
 $RunnerGitHubUrl = "https://github.com/IMUSTAFSKI/MOHAA-EasyHost"
 $RunnerRawScriptUrl = "https://raw.githubusercontent.com/IMUSTAFSKI/MOHAA-EasyHost/main/IMUSTAFSKI%20Server%20Runner.ps1"
 #Oh Dear we gonna start
@@ -15,19 +15,76 @@ $LegacySettingsPaths = @(
     (Join-Path $GameDir "moh-server-settings.json")
 )
 $GeneratedConfigName = "imustafski-server.cfg"
-$GeneratedConfigPath = Join-Path $GameDir "main\$GeneratedConfigName"
 $PlayerConfigPath = Join-Path $GameDir "main\configs\unnamedsoldier.cfg"
 $AutoexecPath = Join-Path $GameDir "main\autoexec.cfg"
 $AllowedHostingGuideUrl = "https://github.com/IMUSTAFSKI/MOHAA-EasyHost/blob/main/Hosting%20Methods.md"
-$AllowedServerExeNames = @("MOHAA_server.exe")
-$AllowedGameExeNames = @("MOHAA.exe")
+$OpenMohaaGuideUrl = "https://github.com/openmoh/openmohaa/blob/main/docs/markdown/03-configuration/02-configuration-server.md"
+$AllowedServerExeNames = @("MOHAA_server.exe", "moh_spearhead_server.exe", "moh_Breakthrough_server.exe", "omohaaded.exe")
+$AllowedGameExeNames = @("MOHAA.exe", "moh_spearhead.exe", "moh_breakthrough.exe", "launch_openmohaa_base.exe", "launch_openmohaa_spearhead.exe", "launch_openmohaa_breakthrough.exe", "openmohaa.exe")
 $script:LastFriendCommand = ""
 #Server Config Settings will be placed in the main (dir)
+function Get-GameProfiles {
+    @(
+        [pscustomobject]@{
+            Id = "original-aa"; Label = "Original Allied Assault"; Engine = "Original MOHAA"; Expansion = "Allied Assault"
+            GameExeName = "MOHAA.exe"; ServerExeName = "MOHAA_server.exe"; ConfigDir = "main"; OpenMoHAA = $false
+            ClientArgs = @(); ServerArgs = @(); Modes = @("ffa", "team", "objective", "roundbased")
+        }
+        [pscustomobject]@{
+            Id = "original-sh"; Label = "Original Spearhead"; Engine = "Original MOHAA"; Expansion = "Spearhead"
+            GameExeName = "moh_spearhead.exe"; ServerExeName = "moh_spearhead_server.exe"; ConfigDir = "mainta"; OpenMoHAA = $false
+            ClientArgs = @(); ServerArgs = @(); Modes = @("ffa", "team", "objective", "roundbased", "tow")
+        }
+        [pscustomobject]@{
+            Id = "original-bt"; Label = "Original Breakthrough"; Engine = "Original MOHAA"; Expansion = "Breakthrough"
+            GameExeName = "moh_breakthrough.exe"; ServerExeName = "moh_Breakthrough_server.exe"; ConfigDir = "maintt"; OpenMoHAA = $false
+            ClientArgs = @(); ServerArgs = @(); Modes = @("ffa", "team", "objective", "roundbased", "liberation")
+        }
+        [pscustomobject]@{
+            Id = "openmohaa-aa"; Label = "OpenMoHAA Allied Assault"; Engine = "OpenMoHAA"; Expansion = "Allied Assault"
+            GameExeName = "openmohaa.exe"; ServerExeName = "omohaaded.exe"; ConfigDir = "main"; OpenMoHAA = $true
+            ClientArgs = @(); ServerArgs = @(); Modes = @("ffa", "team", "objective", "roundbased")
+        }
+        [pscustomobject]@{
+            Id = "openmohaa-sh"; Label = "OpenMoHAA Spearhead"; Engine = "OpenMoHAA"; Expansion = "Spearhead"
+            GameExeName = "openmohaa.exe"; ServerExeName = "omohaaded.exe"; ConfigDir = "mainta"; OpenMoHAA = $true
+            ClientArgs = @("+set", "fs_game", "mainta"); ServerArgs = @("+set", "fs_game", "mainta"); Modes = @("ffa", "team", "objective", "roundbased", "tow")
+        }
+        [pscustomobject]@{
+            Id = "openmohaa-bt"; Label = "OpenMoHAA Breakthrough"; Engine = "OpenMoHAA"; Expansion = "Breakthrough"
+            GameExeName = "openmohaa.exe"; ServerExeName = "omohaaded.exe"; ConfigDir = "maintt"; OpenMoHAA = $true
+            ClientArgs = @("+set", "fs_game", "maintt"); ServerArgs = @("+set", "fs_game", "maintt"); Modes = @("ffa", "team", "objective", "roundbased", "liberation")
+        }
+    )
+}
+
+function Get-GameProfile([string]$ProfileId) {
+    $profiles = @(Get-GameProfiles)
+    $profile = $profiles | Where-Object { $_.Id -eq $ProfileId } | Select-Object -First 1
+    if ($profile) { return $profile }
+    return ($profiles | Where-Object { $_.Id -eq "original-aa" } | Select-Object -First 1)
+}
+
+function Get-SelectedProfile($Settings) {
+    $profileId = if ($Settings.PSObject.Properties.Name -contains "ProfileId") { $Settings.ProfileId } else { $Settings.SelectedGame }
+    Get-GameProfile $profileId
+}
+
+function Get-GeneratedConfigPath($Settings) {
+    $profile = Get-SelectedProfile $Settings
+    Join-Path $GameDir (Join-Path $profile.ConfigDir $GeneratedConfigName)
+}
+
+function Get-ProfileDisplayName($Settings) {
+    (Get-SelectedProfile $Settings).Label
+}
+
 function Get-DefaultSettings {
     [pscustomobject]@{
         ServerName = "IMUSTAFSKI standard server"
         Password = ""
-        SelectedGame = "mohaa"
+        ProfileId = "original-aa"
+        SelectedGame = "original-aa"
         HostingMode = "tunnel"
         MatchMode = "ffa"
         HostingGuideUrl = $AllowedHostingGuideUrl
@@ -41,20 +98,19 @@ function Get-DefaultSettings {
         Gravity = 800
         Knockback = 1000
         WeaponRespawn = 5
-        ResolutionWidth = 1920
-        ResolutionHeight = 1080
-        Fullscreen = 1
-        ColorBits = 32
-        TextureBits = 32
-        TextureCompression = 0
-        PicMip = 0
-        TextureMode = "gl_linear_mipmap_linear"
-        FastSky = 0
-        ConsoleEnabled = 1
-        DeveloperMode = 0
-        Fov = 90
         ServerExeName = "MOHAA_server.exe"
         GameExeName = "MOHAA.exe"
+        SvGameSpy = 1
+        SvMaxRate = 10000
+        SvMinRate = 0
+        SvMinPing = 0
+        SvMaxPing = 0
+        SvPrivateClients = 0
+        SvPrivatePassword = ""
+        RconPassword = ""
+        SvFloodProtect = 1
+        TeamDamage = 0
+        AdvancedCvars = [pscustomobject]@{}
     }
 }
 # All settings now can be edited through the tui directly not via editing the powershell so now the project is just maybe if you can learn somthing :) if you are a normal user just run the powershell script in the main game folder
@@ -80,14 +136,14 @@ function Get-SafeExeName([string]$ExeName, [string[]]$AllowedNames, [string]$Def
 }
 
 function Get-SafeGuideUrl([string]$Url) {
-    if ($Url -eq $AllowedHostingGuideUrl) { return $Url }
+    if ($Url -in @($AllowedHostingGuideUrl, $OpenMohaaGuideUrl)) { return $Url }
     return $AllowedHostingGuideUrl
 }
 
 function Get-SafeMapRotation($Settings) {
-    $preset = Get-MatchModePreset $Settings.MatchMode
+    $preset = Get-MatchModePreset $Settings.MatchMode $Settings
     $allowedMaps = @($preset.Maps)
-    $maps = @($Settings.MapRotation | ForEach-Object { "$_".Trim() } | Where-Object { $_ -and ($_ -in $allowedMaps) })
+    $maps = @($Settings.MapRotation | ForEach-Object { "$_".Trim() } | Where-Object { $_ -and ($_ -match '^[A-Za-z0-9_\-/]+$') })
     if ($maps.Count -eq 0) { $maps = @($allowedMaps[0]) }
     return $maps
 }
@@ -100,14 +156,19 @@ function Normalize-Settings($Settings) {
         }
     }
 
-    if ($Settings.SelectedGame -notin @("mohaa")) { $Settings.SelectedGame = "mohaa" }
+    if ($Settings.SelectedGame -eq "mohaa") { $Settings.SelectedGame = "original-aa" }
+    if ($Settings.ProfileId -eq "mohaa") { $Settings.ProfileId = "original-aa" }
+    if ($Settings.SelectedGame -and -not $Settings.ProfileId) { $Settings.ProfileId = $Settings.SelectedGame }
+    $profile = Get-SelectedProfile $Settings
+    $Settings.ProfileId = $profile.Id
+    $Settings.SelectedGame = $profile.Id
     if ($Settings.HostingMode -notin @("direct", "tunnel", "local")) { $Settings.HostingMode = "tunnel" }
-    if ($Settings.MatchMode -notin @("ffa", "team", "objective", "roundbased")) {
+    if ($Settings.MatchMode -notin @($profile.Modes)) {
         $gameTypeForMode = Get-ClampedInt $Settings.GameType 1 1 4
         $Settings.MatchMode = switch ($gameTypeForMode) {
             2 { "team" }
-            3 { "objective" }
-            4 { "roundbased" }
+            3 { "roundbased" }
+            4 { "objective" }
             default { "ffa" }
         }
     }
@@ -116,8 +177,8 @@ function Normalize-Settings($Settings) {
     if (-not $Settings.ServerName) { $Settings.ServerName = $defaults.ServerName }
     $Settings.Password = Get-SafeText $Settings.Password 64
     $Settings.HostingGuideUrl = Get-SafeGuideUrl $Settings.HostingGuideUrl
-    $Settings.ServerExeName = Get-SafeExeName $Settings.ServerExeName $AllowedServerExeNames $defaults.ServerExeName
-    $Settings.GameExeName = Get-SafeExeName $Settings.GameExeName $AllowedGameExeNames $defaults.GameExeName
+    $Settings.ServerExeName = Get-SafeExeName $profile.ServerExeName $AllowedServerExeNames $defaults.ServerExeName
+    $Settings.GameExeName = Get-SafeExeName $profile.GameExeName $AllowedGameExeNames $defaults.GameExeName
 
     $Settings.TimeLimit = Get-ClampedInt $Settings.TimeLimit $defaults.TimeLimit 1 180
     $Settings.MaxPlayers = Get-ClampedInt $Settings.MaxPlayers $defaults.MaxPlayers 1 64
@@ -127,27 +188,43 @@ function Normalize-Settings($Settings) {
     $Settings.Gravity = Get-ClampedInt $Settings.Gravity $defaults.Gravity 100 2000
     $Settings.Knockback = Get-ClampedInt $Settings.Knockback $defaults.Knockback 0 5000
     $Settings.WeaponRespawn = Get-ClampedInt $Settings.WeaponRespawn $defaults.WeaponRespawn 0 120
-    $Settings.ResolutionWidth = Get-ClampedInt $Settings.ResolutionWidth $defaults.ResolutionWidth 640 7680
-    $Settings.ResolutionHeight = Get-ClampedInt $Settings.ResolutionHeight $defaults.ResolutionHeight 480 4320
-    $Settings.Fullscreen = Get-ClampedInt $Settings.Fullscreen $defaults.Fullscreen 0 1
-    $Settings.ColorBits = if ((Get-ClampedInt $Settings.ColorBits $defaults.ColorBits 16 32) -lt 24) { 16 } else { 32 }
-    $Settings.TextureBits = if ((Get-ClampedInt $Settings.TextureBits $defaults.TextureBits 16 32) -lt 24) { 16 } else { 32 }
-    $Settings.TextureCompression = Get-ClampedInt $Settings.TextureCompression $defaults.TextureCompression 0 1
-    $Settings.PicMip = Get-ClampedInt $Settings.PicMip $defaults.PicMip 0 5
-    $Settings.FastSky = Get-ClampedInt $Settings.FastSky $defaults.FastSky 0 1
-    $Settings.ConsoleEnabled = Get-ClampedInt $Settings.ConsoleEnabled $defaults.ConsoleEnabled 0 1
-    $Settings.DeveloperMode = Get-ClampedInt $Settings.DeveloperMode $defaults.DeveloperMode 0 1
-    $Settings.Fov = Get-ClampedInt $Settings.Fov $defaults.Fov 80 120
-    if ($Settings.TextureMode -notin @("gl_linear_mipmap_linear", "gl_linear_mipmap_nearest", "gl_nearest_mipmap_linear", "gl_nearest_mipmap_nearest")) {
-        $Settings.TextureMode = $defaults.TextureMode
-    }
-    $Settings.GameType = (Get-MatchModePreset $Settings.MatchMode).GameType
+    $Settings.SvGameSpy = Get-ClampedInt $Settings.SvGameSpy $defaults.SvGameSpy 0 1
+    $Settings.SvMaxRate = Get-ClampedInt $Settings.SvMaxRate $defaults.SvMaxRate 0 25000
+    $Settings.SvMinRate = Get-ClampedInt $Settings.SvMinRate $defaults.SvMinRate 0 25000
+    $Settings.SvMinPing = Get-ClampedInt $Settings.SvMinPing $defaults.SvMinPing 0 999
+    $Settings.SvMaxPing = Get-ClampedInt $Settings.SvMaxPing $defaults.SvMaxPing 0 999
+    $Settings.SvPrivateClients = Get-ClampedInt $Settings.SvPrivateClients $defaults.SvPrivateClients 0 $Settings.MaxPlayers
+    $Settings.SvPrivatePassword = Get-SafeText $Settings.SvPrivatePassword 64
+    $Settings.RconPassword = Get-SafeText $Settings.RconPassword 64
+    $Settings.SvFloodProtect = Get-ClampedInt $Settings.SvFloodProtect $defaults.SvFloodProtect 0 1
+    $Settings.TeamDamage = Get-ClampedInt $Settings.TeamDamage $defaults.TeamDamage 0 3
+    if ($null -eq $Settings.AdvancedCvars) { $Settings.AdvancedCvars = [pscustomobject]@{} }
+    $Settings.AdvancedCvars = ConvertTo-AdvancedCvarObject $Settings.AdvancedCvars
+    $Settings.GameType = (Get-MatchModePreset $Settings.MatchMode $Settings).GameType
     $Settings.MapRotation = Get-SafeMapRotation $Settings
     return $Settings
 }
 
-function Get-MatchModePreset([string]$Mode) {
+function Get-MatchModePreset([string]$Mode, $Settings = $null) {
+    $profile = if ($Settings) { Get-SelectedProfile $Settings } else { Get-GameProfile "original-aa" }
+    if ($Mode -notin @($profile.Modes)) { $Mode = "ffa" }
     switch ($Mode) {
+        "tow" {
+            [pscustomobject]@{
+                Key = "tow"
+                Label = "Tug-of-War"
+                GameType = 5
+                Maps = @("tow/tow_stadt", "tow/tow_kasserine", "tow/tow_holland", "tow/tow_anzio")
+            }
+        }
+        "liberation" {
+            [pscustomobject]@{
+                Key = "liberation"
+                Label = "Liberation"
+                GameType = 6
+                Maps = @("dm/mp_bahnhof_dm", "dm/mp_brest_dm", "dm/mp_gewitter_dm", "dm/mp_holland_dm", "dm/mp_stadt_dm")
+            }
+        }
         "team" {
             [pscustomobject]@{
                 Key = "team"
@@ -160,7 +237,7 @@ function Get-MatchModePreset([string]$Mode) {
             [pscustomobject]@{
                 Key = "objective"
                 Label = "Objective"
-                GameType = 3
+                GameType = 4
                 Maps = @("obj/obj_team1", "obj/obj_team2", "obj/obj_team3", "obj/obj_team4")
             }
         }
@@ -168,7 +245,7 @@ function Get-MatchModePreset([string]$Mode) {
             [pscustomobject]@{
                 Key = "roundbased"
                 Label = "Roundbased"
-                GameType = 4
+                GameType = 3
                 Maps = @("dm/mohdm1", "dm/mohdm2", "dm/mohdm3", "dm/mohdm4", "dm/mohdm5", "dm/mohdm6", "dm/mohdm7")
             }
         }
@@ -184,14 +261,14 @@ function Get-MatchModePreset([string]$Mode) {
 }
 
 function Set-MatchModePreset($Settings, [string]$Mode) {
-    $preset = Get-MatchModePreset $Mode
+    $preset = Get-MatchModePreset $Mode $Settings
     $Settings.MatchMode = $preset.Key
     $Settings.GameType = $preset.GameType
     $Settings.MapRotation = @($preset.Maps)
 }
 
 function Get-MatchModeLabel($Settings) {
-    (Get-MatchModePreset $Settings.MatchMode).Label
+    (Get-MatchModePreset $Settings.MatchMode $Settings).Label
 }
 
 function Read-Settings {
@@ -234,6 +311,52 @@ function Escape-CfgValue([string]$Value) {
     return ($Value -replace '\\', '\\' -replace '"', '\"')
 }
 
+function ConvertTo-AdvancedCvarObject($Value) {
+    $result = [ordered]@{}
+    if ($null -ne $Value) {
+        foreach ($property in $Value.PSObject.Properties) {
+            $name = Get-SafeCvarName $property.Name
+            if ($name) {
+                $result[$name] = Get-SafeText "$($property.Value)" 256
+            }
+        }
+    }
+    return [pscustomobject]$result
+}
+
+function Get-SafeCvarName([string]$Name) {
+    if ($null -eq $Name) { return "" }
+    $clean = $Name.Trim()
+    if ($clean -match '^[A-Za-z0-9_\.]+$') { return $clean }
+    return ""
+}
+
+function Get-CvarValue($Settings, [string]$Name) {
+    if ($Settings.AdvancedCvars -and ($Settings.AdvancedCvars.PSObject.Properties.Name -contains $Name)) {
+        return "$($Settings.AdvancedCvars.$Name)"
+    }
+    return $null
+}
+
+function Set-AdvancedCvar($Settings, [string]$Name, [string]$Value) {
+    $safeName = Get-SafeCvarName $Name
+    if (-not $safeName) { return $false }
+    $safeValue = Get-SafeText $Value 256
+    if ($null -eq $Settings.AdvancedCvars) { $Settings.AdvancedCvars = [pscustomobject]@{} }
+    $Settings.AdvancedCvars | Add-Member -NotePropertyName $safeName -NotePropertyValue $safeValue -Force
+    return $true
+}
+
+function Remove-AdvancedCvar($Settings, [string]$Name) {
+    $safeName = Get-SafeCvarName $Name
+    if (-not $safeName -or -not $Settings.AdvancedCvars) { return $false }
+    if ($Settings.AdvancedCvars.PSObject.Properties.Name -contains $safeName) {
+        $Settings.AdvancedCvars.PSObject.Properties.Remove($safeName)
+        return $true
+    }
+    return $false
+}
+
 function Get-PrimaryMap($Settings) {
     @($Settings.MapRotation)[0]
 }
@@ -243,22 +366,52 @@ function Get-MapList($Settings) {
 }
 
 function Write-ServerConfig($Settings, [switch]$Force) {
-    if ((Test-Path $GeneratedConfigPath) -and -not $Force) {
-        return "Existing"
+    $generatedConfigPath = Get-GeneratedConfigPath $Settings
+    if ((Test-Path $generatedConfigPath) -and -not $Force) {
+        $existing = Get-Content -Raw -LiteralPath $generatedConfigPath -ErrorAction SilentlyContinue
+        if ($existing -match "Generated by IMUSTAFSKI Server Runner" -and $existing -match "Profile:" -and $existing -match "sv_gamespy") {
+            return "Existing"
+        }
+    }
+
+    $profile = Get-SelectedProfile $Settings
+    $configDir = Split-Path -Parent $generatedConfigPath
+    if (-not (Test-Path $configDir)) {
+        New-Item -ItemType Directory -Path $configDir -Force | Out-Null
     }
 
     $safeServerName = Escape-CfgValue $Settings.ServerName
     $safePassword = Escape-CfgValue $Settings.Password
     $safeMapList = Escape-CfgValue (Get-MapList $Settings)
     $safePrimaryMap = Escape-CfgValue (Get-PrimaryMap $Settings)
+    $safePrivatePassword = Escape-CfgValue $Settings.SvPrivatePassword
+    $safeRconPassword = Escape-CfgValue $Settings.RconPassword
+    $advancedLines = @()
+    foreach ($property in ($Settings.AdvancedCvars.PSObject.Properties | Sort-Object Name)) {
+        $name = Get-SafeCvarName $property.Name
+        if ($name -and $name -notin @("sv_hostname", "sv_maxclients", "sv_maxClients", "net_port", "g_gametype", "timelimit", "g_password", "sv_maplist")) {
+            $value = Escape-CfgValue "$($property.Value)"
+            $advancedLines += "seta $name `"$value`""
+        }
+    }
+    $advancedBlock = if ($advancedLines.Count -gt 0) { "`r`n// Advanced cvars from runner settings`r`n$($advancedLines -join "`r`n")" } else { "" }
 
     $cfg = @"
 // Generated by IMUSTAFSKI Server Runner.
 // Use Server Settings inside the launcher, then Apply to rebuild this file.
+// Profile: $($profile.Label)
 
 seta sv_hostname "$safeServerName"
 seta sv_maxclients "$($Settings.MaxPlayers)"
-seta sv_maxRate "10000"
+seta sv_maxRate "$($Settings.SvMaxRate)"
+seta sv_minRate "$($Settings.SvMinRate)"
+seta sv_minPing "$($Settings.SvMinPing)"
+seta sv_maxPing "$($Settings.SvMaxPing)"
+seta sv_privateClients "$($Settings.SvPrivateClients)"
+seta sv_privatePassword "$safePrivatePassword"
+seta rconpassword "$safeRconPassword"
+seta sv_floodprotect "$($Settings.SvFloodProtect)"
+seta sv_gamespy "$($Settings.SvGameSpy)"
 seta sv_timeout "120"
 seta sv_precache "1"
 seta sv_fps "30"
@@ -268,11 +421,12 @@ seta logfile "2"
 seta net_noipx "1"
 seta sv_cheats "$($Settings.Cheats)"
 # :)    :)  ;0
-// 1=Deathmatch, 2=Team match, 3=Objective, 4=Roundbased
+// 1=Deathmatch, 2=Team match, 3=Roundbased, 4=Objective, 5=Tug-of-War, 6=Liberation
 seta g_gametype "$($Settings.GameType)"
 seta timelimit "$($Settings.TimeLimit)"
 seta fraglimit "0"
 seta g_password "$safePassword"
+seta g_teamdamage "$($Settings.TeamDamage)"
 
 // Gameplay tuning
 seta g_speed "$($Settings.PlayerSpeed)"
@@ -282,68 +436,16 @@ seta g_weaponRespawn "$($Settings.WeaponRespawn)"
 
 // Multiple maps rotate after the timelimit. One map stays on that map.
 seta sv_maplist "$safeMapList"
+$advancedBlock
 map $safePrimaryMap
 "@
 
-    Set-Content -LiteralPath $GeneratedConfigPath -Value $cfg -Encoding ASCII
+    if ((Test-Path $generatedConfigPath) -and $Force) {
+        $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+        Copy-Item -LiteralPath $generatedConfigPath -Destination "$generatedConfigPath.$stamp.bak" -Force
+    }
+    Set-Content -LiteralPath $generatedConfigPath -Value $cfg -Encoding ASCII
     return "Generated"
-}
-
-function Set-CfgValue([string]$Path, [string]$Name, [string]$Value) {
-    if (-not (Test-Path $Path)) {
-        New-Item -ItemType File -Path $Path -Force | Out-Null
-    }
-
-    $lines = @(Get-Content -LiteralPath $Path -ErrorAction SilentlyContinue)
-    $escapedName = [regex]::Escape($Name)
-    $replacement = "seta $Name `"$Value`""
-    $found = $false
-
-    for ($i = 0; $i -lt $lines.Count; $i++) {
-        if ($lines[$i] -match "^\s*seta\s+$escapedName\s+") {
-            $lines[$i] = $replacement
-            $found = $true
-        }
-    }
-
-    if (-not $found) {
-        $lines += $replacement
-    }
-
-    Set-Content -LiteralPath $Path -Value $lines -Encoding ASCII
-}
-
-function Backup-PlayerConfig {
-    if ((Test-Path $PlayerConfigPath) -and -not (Test-Path "$PlayerConfigPath.imustafski-backup")) {
-        Copy-Item -LiteralPath $PlayerConfigPath -Destination "$PlayerConfigPath.imustafski-backup" -Force
-    }
-}
-#Game settings direct in the tui
-function Apply-GameSettings($Settings) {
-    Backup-PlayerConfig
-
-    $values = [ordered]@{
-        r_mode = "-1"
-        r_customwidth = "$($Settings.ResolutionWidth)"
-        r_customheight = "$($Settings.ResolutionHeight)"
-        r_fullscreen = "$($Settings.Fullscreen)"
-        r_colorbits = "$($Settings.ColorBits)"
-        r_texturebits = "$($Settings.TextureBits)"
-        r_ext_compressed_textures = "$($Settings.TextureCompression)"
-        r_picmip = "$($Settings.PicMip)"
-        r_textureMode = "$($Settings.TextureMode)"
-        r_fastsky = "$($Settings.FastSky)"
-        ui_console = "$($Settings.ConsoleEnabled)"
-        developer = "$($Settings.DeveloperMode)"
-        cg_fov = "$($Settings.Fov)"
-    }
-
-    foreach ($item in $values.GetEnumerator()) {
-        Set-CfgValue $PlayerConfigPath $item.Key $item.Value
-        Set-CfgValue $AutoexecPath $item.Key $item.Value
-    }
-
-    return "Game settings applied to main\configs\unnamedsoldier.cfg and main\autoexec.cfg."
 }
 
 function Compare-VersionText([string]$Left, [string]$Right) {
@@ -413,9 +515,34 @@ function Get-ZeroTierTunnelInfo($Settings) {
     return $null
 }
 
+function Get-ShortcutTarget([string]$Path) {
+    if (-not (Test-Path $Path)) { return "" }
+    try {
+        $shell = New-Object -ComObject WScript.Shell
+        $shortcut = $shell.CreateShortcut($Path)
+        return $shortcut.TargetPath
+    } catch {
+        return ""
+    }
+}
+
+function Get-PlayitExecutablePath {
+    $candidates = @()
+    $pathCommand = Get-Command "playit.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($pathCommand) { $candidates += $pathCommand.Source }
+    $candidates += "C:\Program Files\playit_gg\bin\playit.exe"
+    $shortcutTarget = Get-ShortcutTarget (Join-Path $GameDir "Playit.gg.lnk")
+    if ($shortcutTarget) { $candidates += $shortcutTarget }
+
+    foreach ($candidate in ($candidates | Where-Object { $_ } | Select-Object -Unique)) {
+        if (Test-Path $candidate) { return $candidate }
+    }
+    return ""
+}
+
 function Get-PlayitTunnelInfo($Settings) {
-    $playitCommand = Get-Command "playit.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-    if (-not $playitCommand) {
+    $playitPath = Get-PlayitExecutablePath
+    if (-not $playitPath) {
         return [pscustomobject]@{
             Tool = "playit.gg"
             State = "Missing"
@@ -426,7 +553,7 @@ function Get-PlayitTunnelInfo($Settings) {
     }
 
     try {
-        $status = (& $playitCommand.Source status 2>&1 | Out-String).Trim()
+        $status = (& $playitPath status 2>&1 | Out-String).Trim()
         $hostPortMatch = [regex]::Match($status, "([a-zA-Z0-9.-]+\.(?:playit\.gg|ply\.gg|joinmc\.link|gl\.at|at\.ply\.gg|localhost|[a-zA-Z]{2,})[:/][0-9]{2,5})")
         if (-not $hostPortMatch.Success) {
             $hostPortMatch = [regex]::Match($status, "([a-zA-Z0-9.-]+:[0-9]{2,5})")
@@ -443,7 +570,8 @@ function Get-PlayitTunnelInfo($Settings) {
             }
         }
 
-        if ($status -match "not running") {
+        $running = Get-Process -Name "playit", "playit-cli" -ErrorAction SilentlyContinue | Select-Object -First 1
+        if (($status -match "not running") -or (-not $running -and $status -notmatch "tunnel|agent|connected|running")) {
             return [pscustomobject]@{
                 Tool = "playit.gg"
                 State = "Stopped"
@@ -479,32 +607,83 @@ function Get-TunnelInfo($Settings) {
     return @($items)
 }
 
-function Get-ServerProcess($Settings) {
-    $serverExeName = Get-SafeExeName $Settings.ServerExeName $AllowedServerExeNames "MOHAA_server.exe"
+function Get-ProcessCommandLine([int]$ProcessId) {
+    try {
+        $wmi = Get-WmiObject Win32_Process -Filter "ProcessId = $ProcessId" -ErrorAction SilentlyContinue
+        if ($wmi -and $wmi.CommandLine) { return $wmi.CommandLine }
+    } catch {}
+    return ""
+}
+
+function Get-ProfileFsGame($Profile) {
+    $serverArgs = @($Profile.ServerArgs)
+    for ($i = 0; $i -lt $serverArgs.Count; $i++) {
+        if ($serverArgs[$i] -eq "fs_game" -and ($i + 1) -lt $serverArgs.Count) {
+            return $serverArgs[$i + 1]
+        }
+    }
+    return ""
+}
+#OpenMoHAA profiles share omohaaded.exe so we match by exe path only here
+function Get-ServerProcessesByExe($Settings) {
+    $profile = Get-SelectedProfile $Settings
+    $serverExeName = Get-SafeExeName $profile.ServerExeName $AllowedServerExeNames "MOHAA_server.exe"
     $serverPath = Join-Path $GameDir $serverExeName
     $exeName = [IO.Path]::GetFileNameWithoutExtension($serverExeName)
-    Get-Process -Name $exeName -ErrorAction SilentlyContinue | Where-Object {
+    @(Get-Process -Name $exeName -ErrorAction SilentlyContinue | Where-Object {
         try { $_.Path -eq $serverPath } catch { $false }
-    }
+    })
+}
+#Profile-aware: for OpenMoHAA, checks fs_game in command line to tell AA/SH/BT apart
+function Get-ServerProcess($Settings) {
+    $profile = Get-SelectedProfile $Settings
+    $candidates = @(Get-ServerProcessesByExe $Settings)
+    if ($candidates.Count -eq 0) { return @() }
+    # Original game profiles have unique server exes, no further filtering needed
+    if (-not $profile.OpenMoHAA) { return $candidates }
+    # OpenMoHAA profiles share omohaaded.exe, distinguish by fs_game in command line
+    $fsGame = Get-ProfileFsGame $profile
+    @($candidates | Where-Object {
+        $cmdLine = Get-ProcessCommandLine $_.Id
+        if ($fsGame) {
+            # SH or BT: command line must contain fs_game with the matching value
+            $cmdLine -match "fs_game\s+$([regex]::Escape($fsGame))"
+        } else {
+            # AA: command line must NOT contain fs_game mainta or maintt
+            $cmdLine -notmatch 'fs_game\s+(mainta|maintt)'
+        }
+    })
 }
 
 function Start-Server($Settings, [switch]$ForceConfig) {
-    $serverExeName = Get-SafeExeName $Settings.ServerExeName $AllowedServerExeNames "MOHAA_server.exe"
+    $profile = Get-SelectedProfile $Settings
+    $serverExeName = Get-SafeExeName $profile.ServerExeName $AllowedServerExeNames "MOHAA_server.exe"
     $serverExe = Join-Path $GameDir $serverExeName
     if (-not (Test-Path $serverExe)) {
         throw "Missing server executable: $serverExe"
     }
 
     $configState = Write-ServerConfig $Settings -Force:$ForceConfig
-    $running = Get-ServerProcess $Settings
-    if ($running) {
+    $running = @(Get-ServerProcess $Settings)
+    if ($running.Count -gt 0) {
         return [pscustomobject]@{
             Process = $running | Select-Object -First 1
             ConfigState = $configState
         }
     }
+    # Stop any stale server processes using the same exe but a different profile
+    $stale = @(Get-ServerProcessesByExe $Settings)
+    if ($stale.Count -gt 0) {
+        $stale | ForEach-Object {
+            $_.CloseMainWindow() | Out-Null
+            Start-Sleep -Milliseconds 800
+            if (-not $_.HasExited) {
+                Stop-Process -Id $_.Id -Force
+            }
+        }
+    }
     #Setting the exe ending in Properties
-    $args = @(
+    $args = @($profile.ServerArgs) + @(
         "+set", "dedicated", "2",
         "+set", "net_port", "$($Settings.Port)",
         "+set", "net_noipx", "1",
@@ -519,10 +698,10 @@ function Start-Server($Settings, [switch]$ForceConfig) {
         ConfigState = $configState
     }
 }
-
+#Stops all instances of the server exe regardless of profile (handles shared omohaaded.exe)
 function Stop-Server($Settings) {
-    $running = Get-ServerProcess $Settings
-    if (-not $running) { return }
+    $running = @(Get-ServerProcessesByExe $Settings)
+    if ($running.Count -eq 0) { return }
     $running | ForEach-Object {
         $_.CloseMainWindow() | Out-Null
         Start-Sleep -Milliseconds 800
@@ -568,26 +747,6 @@ function Get-PublicIP {
     return $null
 }
  #done fetching
-function Test-LocalServerBinding($Settings, $Process) {
-    if (-not $Process) {
-        return $false
-    }
-
-    try {
-        $pattern = "^\s*UDP\s+\S+:$($Settings.Port)\s+\*:\*\s+$($Process.Id)\s*$"
-        return [bool](netstat -ano -p udp | Select-String -Pattern $pattern)
-    } catch {
-        return $false
-    }
-}
-
-function Test-LocalServer($Settings, $Process) {
-    if (Test-LocalServerBinding $Settings $Process) {
-        return "OK - listening on UDP 0.0.0.0:$($Settings.Port)"
-    }
-    return "WARN - process is running, but UDP $($Settings.Port) was not detected"
-}
-
 function Get-ConnectionInfo($Settings) {
     $publicIp = Get-PublicIP #SetUp the IP that is given from the service 
     $localIps = @(Get-LocalIPv4Addresses) #setting the LocalIP for the hoster
@@ -650,11 +809,10 @@ function Open-HostingGuide($Settings) {
 }
 # TUI
 function Show-Dashboard($Settings, $Process, $ConfigState, [string]$Message = "") {
+    $profile = Get-SelectedProfile $Settings
     $connection = Get-ConnectionInfo $Settings
     $status = if ($Process -and -not $Process.HasExited) { "Running, PID $($Process.Id)" } else { "Not running" }
-    $test = if ($Process -and -not $Process.HasExited) { Test-LocalServer $Settings $Process } else { "Not tested" }
     $statusColor = if ($status -like "Running*") { [ConsoleColor]::Green } else { [ConsoleColor]::Red }
-    $testColor = if ($test -like "OK*") { [ConsoleColor]::Green } else { [ConsoleColor]::Yellow }
     $rotationLabel = if (@($Settings.MapRotation).Count -gt 1) { "$(Get-PrimaryMap $Settings) + $(@($Settings.MapRotation).Count - 1) queued" } else { Get-PrimaryMap $Settings }
 
     Clear-Host
@@ -663,19 +821,21 @@ function Show-Dashboard($Settings, $Process, $ConfigState, [string]$Message = ""
     Write-Host "  =====================================" -ForegroundColor DarkCyan
     Write-LabelValue "Status" $status $statusColor
     Write-LabelValue "Name" $Settings.ServerName Cyan
-    Write-LabelValue "Game" "Medal of Honor: Allied Assault" Gray
+    Write-LabelValue "Game" $profile.Label Gray
     Write-LabelValue "Hosting" (Get-HostingModeLabel $Settings.HostingMode) Cyan
     Write-LabelValue "Mode" (Get-MatchModeLabel $Settings) Gray
     Write-LabelValue "Map queue" $rotationLabel Gray
     Write-LabelValue "Time limit" "$($Settings.TimeLimit) minutes" Gray
     Write-LabelValue "Port" "UDP $($Settings.Port)" Gray
     Write-LabelValue "Gameplay" "speed $($Settings.PlayerSpeed), gravity $($Settings.Gravity), cheats $($Settings.Cheats)" Gray
-    Write-LabelValue "Game video" "$($Settings.ResolutionWidth)x$($Settings.ResolutionHeight), textures $($Settings.TextureBits)-bit" Gray
-    Write-LabelValue "Test" $test $testColor
-    Write-LabelValue "Config" "$GeneratedConfigName ($ConfigState)" DarkGray
     Write-Host ""
     Write-Host "  COPY / SEND" -ForegroundColor Yellow
     Write-Host "  --------------------" -ForegroundColor DarkYellow
+    Write-Host "  Host:   $($connection.HostCommand)" -ForegroundColor Green
+    Write-Host "  LAN:    $(if ($connection.VpnCommand) { $connection.VpnCommand } else { 'not detected' })" -ForegroundColor Gray
+    Write-Host "  Public: $(if ($connection.PublicCommand) { $connection.PublicCommand } else { 'not detected' })" -ForegroundColor Gray
+    Write-Host "  Playit: $(if ($connection.PlayitCommand) { $connection.PlayitCommand } else { 'not detected' })" -ForegroundColor Gray
+    Write-Host ""
     switch ($Settings.HostingMode) {
         "direct" {
             Write-Host "  Friend command for direct internet hosting:" -ForegroundColor DarkGray
@@ -708,7 +868,7 @@ function Show-Dashboard($Settings, $Process, $ConfigState, [string]$Message = ""
     Write-Host "  HOST CONNECTS WITH" -ForegroundColor Green
     Write-Host "  $($connection.HostCommand)" -ForegroundColor Green
     Write-Host ""
-    Write-Host "  In MOHAA press ~, type the connect command, then press Enter." -ForegroundColor DarkGray
+    Write-Host "  In MOHAA/OpenMoHAA press ~, type the connect command, then press Enter." -ForegroundColor DarkGray
     Write-Host "  Use Network Details for all detected LAN, ZeroTier, and playit.gg addresses." -ForegroundColor DarkGray
     if ($Message) {
         Write-Host ""
@@ -717,15 +877,19 @@ function Show-Dashboard($Settings, $Process, $ConfigState, [string]$Message = ""
 }
 
 function Show-NetworkDetails($Settings) {
+    $profile = Get-SelectedProfile $Settings
     $connection = Get-ConnectionInfo $Settings
     Clear-Host
     Write-Host ""
     Write-Host "  NETWORK DETAILS" -ForegroundColor Cyan
     Write-Host "  =====================================" -ForegroundColor DarkCyan
     Write-LabelValue "Hosting" (Get-HostingModeLabel $Settings.HostingMode) Cyan
+    Write-LabelValue "Profile" $profile.Label Gray
     Write-LabelValue "Port" "UDP $($Settings.Port)" Gray
     Write-LabelValue "Host" $connection.HostCommand Green
+    Write-LabelValue "LAN" $(if ($connection.VpnCommand) { $connection.VpnCommand } else { "not detected" }) $(if ($connection.VpnCommand) { [ConsoleColor]::Gray } else { [ConsoleColor]::DarkYellow })
     Write-LabelValue "Public" $(if ($connection.PublicCommand) { $connection.PublicCommand } else { "not detected" }) $(if ($connection.PublicCommand) { [ConsoleColor]::Yellow } else { [ConsoleColor]::DarkYellow })
+    Write-LabelValue "Playit.gg" $(if ($connection.PlayitCommand) { $connection.PlayitCommand } else { "not detected" }) $(if ($connection.PlayitCommand) { [ConsoleColor]::Yellow } else { [ConsoleColor]::DarkYellow })
     Write-Host ""
     Write-Host "  TUNNELS" -ForegroundColor Cyan
     if ($connection.Tunnels.Count -gt 0) {
@@ -753,13 +917,25 @@ function Show-NetworkDetails($Settings) {
 }
 # Game Opening Direct from the TUI
 function Open-Game($Settings) {
-    $gameExeName = Get-SafeExeName $Settings.GameExeName $AllowedGameExeNames "MOHAA.exe"
+    $profile = Get-SelectedProfile $Settings
+    $gameExeName = Get-SafeExeName $profile.GameExeName $AllowedGameExeNames "MOHAA.exe"
+    if ($profile.Id -eq "openmohaa-aa" -and -not (Test-Path (Join-Path $GameDir $gameExeName)) -and (Test-Path (Join-Path $GameDir "openmohaa.exe"))) {
+        $gameExeName = "openmohaa.exe"
+    }
     $gameExe = Join-Path $GameDir $gameExeName
     if (-not (Test-Path $gameExe)) {
         return "Missing game executable: $gameExe"
     }
-    Start-Process -FilePath $gameExe -WorkingDirectory $GameDir
-    return "MOHAA launched."
+    try {
+        if ($profile.ClientArgs -and @($profile.ClientArgs).Count -gt 0) {
+            [void](Start-Process -FilePath $gameExe -ArgumentList @($profile.ClientArgs) -WorkingDirectory $GameDir -ErrorAction Stop)
+        } else {
+            [void](Start-Process -FilePath $gameExe -WorkingDirectory $GameDir -ErrorAction Stop)
+        }
+        return "$($profile.Label) launched."
+    } catch {
+        return "Failed to launch game: $($_.Exception.Message)"
+    }
 }
 #clipboard direct tui
 function Copy-FriendCommand {
@@ -891,51 +1067,14 @@ function Invoke-ToggleSelector([string]$Title, [int]$CurrentValue, [string]$OnLa
     return [int](Invoke-ArrowMenu $items "Choose with arrows, Enter, or hotkey.")
 }
 
-function Invoke-TextureBitsSelector([int]$CurrentValue) {
-    Clear-Host
-    Write-Host ""
-    Write-Host "  Texture quality bits" -ForegroundColor Cyan
-    Write-Host "  Current: $CurrentValue" -ForegroundColor DarkGray
-    $items = @(
-        [pscustomobject]@{ Label = "[3] 32-bit, recommended"; Hotkey = "3"; Action = 32 }
-        [pscustomobject]@{ Label = "[1] 16-bit, compatibility"; Hotkey = "1"; Action = 16 }
-    )
-    return [int](Invoke-ArrowMenu $items "Choose texture quality.")
-}
-
-function Invoke-ResolutionSelector($Draft) {
-    Clear-Host
-    Write-Host ""
-    Write-Host "  Resolution" -ForegroundColor Cyan
-    Write-Host "  Current: $($Draft.ResolutionWidth)x$($Draft.ResolutionHeight)" -ForegroundColor DarkGray
-    $items = @(
-        [pscustomobject]@{ Label = "[1] 720p 1280x720"; Hotkey = "1"; Action = "720" }
-        [pscustomobject]@{ Label = "[2] 1080p 1920x1080"; Hotkey = "2"; Action = "1080" }
-        [pscustomobject]@{ Label = "[3] 1440p 2560x1440"; Hotkey = "3"; Action = "1440" }
-        [pscustomobject]@{ Label = "[4] 4K 3840x2160"; Hotkey = "4"; Action = "4k" }
-        [pscustomobject]@{ Label = "[C] Custom"; Hotkey = "C"; Action = "custom" }
-        [pscustomobject]@{ Label = "[B] Back"; Hotkey = "B"; Action = "cancel" }
-    )
-    $choice = Invoke-ArrowMenu $items "Choose a preset, or Custom for exact values."
-    switch ($choice) {
-        "720" { return [pscustomobject]@{ Width = 1280; Height = 720; Label = "720p preset selected." } }
-        "1080" { return [pscustomobject]@{ Width = 1920; Height = 1080; Label = "1080p preset selected." } }
-        "1440" { return [pscustomobject]@{ Width = 2560; Height = 1440; Label = "1440p preset selected." } }
-        "4k" { return [pscustomobject]@{ Width = 3840; Height = 2160; Label = "4K preset selected." } }
-        "custom" {
-            $width = Read-SettingInt "Resolution width" $Draft.ResolutionWidth 640 7680
-            $height = Read-SettingInt "Resolution height" $Draft.ResolutionHeight 480 4320
-            return [pscustomobject]@{ Width = $width; Height = $height; Label = "Custom resolution selected." }
-        }
-        default { return $null }
-    }
-}
 #screen settings
 function Show-SettingsScreen($Draft, [string]$Message = "") {
+    $profile = Get-SelectedProfile $Draft
     Clear-Host
     Write-Host ""
     Write-Host "  SERVER SETTINGS" -ForegroundColor Cyan
     Write-Host "  =====================================" -ForegroundColor DarkCyan
+    Write-LabelValue "Profile" $profile.Label Cyan
     Write-LabelValue "Name" $Draft.ServerName Cyan
     Write-LabelValue "Password" $(if ($Draft.Password) { "(set)" } else { "(none)" }) Gray
     Write-LabelValue "Mode" (Get-MatchModeLabel $Draft) Gray
@@ -949,35 +1088,17 @@ function Show-SettingsScreen($Draft, [string]$Message = "") {
     Write-LabelValue "Gravity" "$($Draft.Gravity)" Gray
     Write-LabelValue "Knockback" "$($Draft.Knockback)" Gray
     Write-LabelValue "Respawn" "$($Draft.WeaponRespawn) sec weapons" Gray
+    Write-LabelValue "GameSpy" "$($Draft.SvGameSpy)" Gray
+    Write-LabelValue "Rate" "max $($Draft.SvMaxRate), min $($Draft.SvMinRate)" Gray
+    Write-LabelValue "Ping" "min $($Draft.SvMinPing), max $($Draft.SvMaxPing)" Gray
+    Write-LabelValue "Private" "$($Draft.SvPrivateClients) slots" Gray
+    Write-LabelValue "RCON" $(if ($Draft.RconPassword) { "(set)" } else { "(none)" }) Gray
+    Write-LabelValue "Flood" "$($Draft.SvFloodProtect)" Gray
+    Write-LabelValue "Team dmg" "$($Draft.TeamDamage)" Gray
+    Write-LabelValue "Advanced" "$(@($Draft.AdvancedCvars.PSObject.Properties).Count) cvars" Gray
     Write-Host ""
     Write-Host "  Map rotation note: one map stays there; multiple maps rotate after the timelimit." -ForegroundColor DarkGray
     Write-Host "  Gameplay values apply after Apply rebuilds config and restarts the server." -ForegroundColor DarkGray
-    if ($Message) {
-        Write-Host ""
-        Write-Host "  $Message" -ForegroundColor Magenta
-    }
-}
-# inside game settings
-function Show-GameSettingsScreen($Draft, [string]$Message = "") {
-    Clear-Host
-    Write-Host ""
-    Write-Host "  GAME SETTINGS" -ForegroundColor Cyan
-    Write-Host "  =====================================" -ForegroundColor DarkCyan
-    Write-LabelValue "Resolution" "$($Draft.ResolutionWidth)x$($Draft.ResolutionHeight)" Cyan
-    Write-LabelValue "Fullscreen" "$($Draft.Fullscreen)" Gray
-    Write-LabelValue "Color bits" "$($Draft.ColorBits)" Gray
-    Write-LabelValue "Texture bits" "$($Draft.TextureBits)" Gray
-    Write-LabelValue "Compression" "$($Draft.TextureCompression)" Gray
-    Write-LabelValue "Texture mode" "$($Draft.TextureMode)" Gray
-    Write-LabelValue "Picmip" "$($Draft.PicMip)" Gray
-    Write-LabelValue "Fast sky" "$($Draft.FastSky)" Gray
-    Write-LabelValue "Console" "$($Draft.ConsoleEnabled)" Gray
-    Write-LabelValue "Developer" "$($Draft.DeveloperMode)" Gray
-    Write-LabelValue "FOV cvar" "$($Draft.Fov)" Gray
-    Write-Host ""
-    Write-Host "  Widescreen uses r_mode -1 plus custom width/height." -ForegroundColor DarkGray
-    Write-Host "  Sky/texture cleanup uses safe config toggles only; no DLL hex patching." -ForegroundColor DarkGray
-    Write-Host "  If the game is open, restart MOHAA after applying video settings." -ForegroundColor DarkGray
     if ($Message) {
         Write-Host ""
         Write-Host "  $Message" -ForegroundColor Magenta
@@ -995,6 +1116,111 @@ function Edit-MapRotation($Draft) {
     if (-not [string]::IsNullOrWhiteSpace($value)) {
         $maps = @($value.Split(",") | ForEach-Object { $_.Trim() } | Where-Object { $_ })
         if ($maps.Count -gt 0) { $Draft.MapRotation = $maps }
+    }
+}
+
+function Read-CfgCvars([string]$Path) {
+    $result = [ordered]@{}
+    if (-not (Test-Path $Path)) { return [pscustomobject]$result }
+    foreach ($line in (Get-Content -LiteralPath $Path -ErrorAction SilentlyContinue)) {
+        $match = [regex]::Match($line, '^\s*(?:set|seta)\s+([A-Za-z0-9_\.]+)\s+(.+?)\s*(?://.*)?$')
+        if ($match.Success) {
+            $name = Get-SafeCvarName $match.Groups[1].Value
+            $value = $match.Groups[2].Value.Trim()
+            if ($value.StartsWith('"') -and $value.EndsWith('"') -and $value.Length -ge 2) {
+                $value = $value.Substring(1, $value.Length - 2)
+            }
+            if ($name) { $result[$name] = Get-SafeText $value 256 }
+        }
+    }
+    return [pscustomobject]$result
+}
+
+function Import-AdvancedCvars($Draft, [string]$Path) {
+    $cvars = Read-CfgCvars $Path
+    $count = 0
+    foreach ($property in $cvars.PSObject.Properties) {
+        if (Set-AdvancedCvar $Draft $property.Name "$($property.Value)") { $count++ }
+    }
+    return $count
+}
+
+function Show-AdvancedCvarScreen($Draft, [string]$Message = "") {
+    $profile = Get-SelectedProfile $Draft
+    Clear-Host
+    Write-Host ""
+    Write-Host "  ADVANCED SERVER CVARS" -ForegroundColor Cyan
+    Write-Host "  =====================================" -ForegroundColor DarkCyan
+    Write-LabelValue "Profile" $profile.Label Gray
+    Write-LabelValue "Generated" "$($profile.ConfigDir)\$GeneratedConfigName" Gray
+    Write-LabelValue "Source cfg" "$($profile.ConfigDir)\server.cfg" Gray
+    Write-Host ""
+    if ($Draft.AdvancedCvars -and @($Draft.AdvancedCvars.PSObject.Properties).Count -gt 0) {
+        $Draft.AdvancedCvars.PSObject.Properties | Sort-Object Name | ForEach-Object {
+            Write-Host ("  {0,-24} {1}" -f $_.Name, $_.Value) -ForegroundColor Gray
+        }
+    } else {
+        Write-Host "  No advanced cvars yet." -ForegroundColor DarkYellow
+    }
+    Write-Host ""
+    Write-Host "  Advanced cvars are written only to the runner-generated config." -ForegroundColor DarkGray
+    Write-Host "  Core values like sv_hostname, g_gametype, timelimit, and sv_maplist stay controlled by the normal menu." -ForegroundColor DarkGray
+    if ($Message) {
+        Write-Host ""
+        Write-Host "  $Message" -ForegroundColor Magenta
+    }
+}
+
+function Edit-AdvancedCvarsTui($CurrentSettings) {
+    $draft = Normalize-Settings (Copy-Settings $CurrentSettings)
+    $message = ""
+    while ($true) {
+        Show-AdvancedCvarScreen $draft $message
+        $items = @(
+            [pscustomobject]@{ Label = "[A] Add or edit cvar"; Hotkey = "A"; Action = "Add" }
+            [pscustomobject]@{ Label = "[D] Delete cvar"; Hotkey = "D"; Action = "Delete" }
+            [pscustomobject]@{ Label = "[I] Import from selected profile server.cfg"; Hotkey = "I"; Action = "ImportProfile" }
+            [pscustomobject]@{ Label = "[G] Import from generated config"; Hotkey = "G"; Action = "ImportGenerated" }
+            [pscustomobject]@{ Label = "[R] Reset advanced cvars"; Hotkey = "R"; Action = "Reset" }
+            [pscustomobject]@{ Label = "[S] Save advanced cvars"; Hotkey = "S"; Action = "Save" }
+            [pscustomobject]@{ Label = "[C] Cancel"; Hotkey = "C"; Action = "Cancel" }
+        )
+        $action = Invoke-ArrowMenu $items "Advanced cvars: edit power-user set/seta values, then Save."
+        switch ($action) {
+            "Add" {
+                $name = Read-SettingText "Cvar name" ""
+                $safeName = Get-SafeCvarName $name
+                if (-not $safeName) {
+                    $message = "Invalid cvar name. Use letters, numbers, underscore, or dot."
+                } else {
+                    $current = Get-CvarValue $draft $safeName
+                    $value = Read-SettingText "Value for $safeName" $(if ($null -ne $current) { $current } else { "" })
+                    [void](Set-AdvancedCvar $draft $safeName $value)
+                    $message = "$safeName updated in draft."
+                }
+            }
+            "Delete" {
+                $name = Read-SettingText "Cvar name to delete" ""
+                if (Remove-AdvancedCvar $draft $name) { $message = "$name removed from draft." } else { $message = "Cvar was not found." }
+            }
+            "ImportProfile" {
+                $profile = Get-SelectedProfile $draft
+                $path = Join-Path $GameDir (Join-Path $profile.ConfigDir "server.cfg")
+                $count = Import-AdvancedCvars $draft $path
+                $message = "Imported $count cvars from $($profile.ConfigDir)\server.cfg."
+            }
+            "ImportGenerated" {
+                $path = Get-GeneratedConfigPath $draft
+                $count = Import-AdvancedCvars $draft $path
+                $message = "Imported $count cvars from generated config."
+            }
+            "Reset" {
+                $draft.AdvancedCvars = [pscustomobject]@{}
+                $message = "Advanced cvars reset in draft."
+            }
+            "Save" { return [pscustomobject]@{ Applied = $true; Settings = (Normalize-Settings $draft) } }
+            "Cancel" { return [pscustomobject]@{ Applied = $false; Settings = $CurrentSettings } }
+        }
     }
 }
 
@@ -1017,8 +1243,16 @@ function Edit-SettingsTui($CurrentSettings) {
             [pscustomobject]@{ Label = "[G] Gravity"; Hotkey = "G"; Action = "Gravity" }
             [pscustomobject]@{ Label = "[K] Knockback"; Hotkey = "K"; Action = "Knockback" }
             [pscustomobject]@{ Label = "[W] Weapon respawn"; Hotkey = "W"; Action = "Respawn" }
+            [pscustomobject]@{ Label = "[I] Server browser / GameSpy"; Hotkey = "I"; Action = "GameSpy" }
+            [pscustomobject]@{ Label = "[U] Rate limits"; Hotkey = "U"; Action = "Rates" }
+            [pscustomobject]@{ Label = "[L] Ping limits"; Hotkey = "L"; Action = "Pings" }
+            [pscustomobject]@{ Label = "[Z] Private slots/password"; Hotkey = "Z"; Action = "Private" }
+            [pscustomobject]@{ Label = "[J] RCON password"; Hotkey = "J"; Action = "Rcon" }
+            [pscustomobject]@{ Label = "[D] Flood protect"; Hotkey = "D"; Action = "Flood" }
+            [pscustomobject]@{ Label = "[Q] Team damage"; Hotkey = "Q"; Action = "TeamDamage" }
+            [pscustomobject]@{ Label = "[C] Advanced cvars"; Hotkey = "C"; Action = "Advanced" }
             [pscustomobject]@{ Label = "[A] Apply and restart"; Hotkey = "A"; Action = "Apply" }
-            [pscustomobject]@{ Label = "[C] Cancel"; Hotkey = "C"; Action = "Cancel" }
+            [pscustomobject]@{ Label = "[B] Cancel"; Hotkey = "B"; Action = "Cancel" }
         )
 
         $action = Invoke-ArrowMenu $items "Settings: arrows + Enter, then A to apply or C to cancel."
@@ -1026,13 +1260,15 @@ function Edit-SettingsTui($CurrentSettings) {
             "Name" { $draft.ServerName = Read-SettingText "Server name" $draft.ServerName; $message = "Server name updated in draft." }
             "Password" { $draft.Password = Read-SettingText "Password, blank means no password" $draft.Password; $message = "Password updated in draft." }
             "MatchMode" {
-                $modeItems = @(
-                    [pscustomobject]@{ Label = "[1] Free-for-All"; Hotkey = "1"; Action = "ffa" }
-                    [pscustomobject]@{ Label = "[2] Team Match"; Hotkey = "2"; Action = "team" }
-                    [pscustomobject]@{ Label = "[3] Objective"; Hotkey = "3"; Action = "objective" }
-                    [pscustomobject]@{ Label = "[4] Roundbased"; Hotkey = "4"; Action = "roundbased" }
-                )
-                $mode = Invoke-ArrowMenu $modeItems "Choose Allied Assault match mode preset."
+                $profile = Get-SelectedProfile $draft
+                $modeItems = @()
+                $modeIndex = 1
+                foreach ($modeKey in @($profile.Modes)) {
+                    $preset = Get-MatchModePreset $modeKey $draft
+                    $modeItems += [pscustomobject]@{ Label = "[$modeIndex] $($preset.Label)"; Hotkey = "$modeIndex"; Action = $modeKey }
+                    $modeIndex++
+                }
+                $mode = Invoke-ArrowMenu $modeItems "Choose a match mode for $($profile.Label)."
                 Set-MatchModePreset $draft $mode
                 $message = "$(Get-MatchModeLabel $draft) preset applied in draft."
             }
@@ -1045,59 +1281,34 @@ function Edit-SettingsTui($CurrentSettings) {
             "Gravity" { $draft.Gravity = Invoke-VisualSlider "Gravity" $draft.Gravity 100 2000 25 100 ""; $message = "Gravity updated in draft." }
             "Knockback" { $draft.Knockback = Invoke-VisualSlider "Knockback" $draft.Knockback 0 5000 100 500 ""; $message = "Knockback updated in draft." }
             "Respawn" { $draft.WeaponRespawn = Invoke-VisualSlider "Weapon respawn" $draft.WeaponRespawn 0 120 1 5 "seconds"; $message = "Weapon respawn updated in draft." }
-            "Apply" { return [pscustomobject]@{ Applied = $true; Settings = (Normalize-Settings $draft) } }
-            "Cancel" { return [pscustomobject]@{ Applied = $false; Settings = $CurrentSettings } }
-        }
-    }
-}
-
-function Edit-GameSettingsTui($CurrentSettings) {
-    $draft = Normalize-Settings (Copy-Settings $CurrentSettings)
-    $message = ""
-
-    while ($true) {
-        Show-GameSettingsScreen $draft $message
-        $items = @(
-            [pscustomobject]@{ Label = "[R] Resolution preset"; Hotkey = "R"; Action = "Resolution" }
-            [pscustomobject]@{ Label = "[F] Fullscreen toggle"; Hotkey = "F"; Action = "Fullscreen" }
-            [pscustomobject]@{ Label = "[T] Texture quality bits"; Hotkey = "T"; Action = "TextureBits" }
-            [pscustomobject]@{ Label = "[X] Texture compression toggle"; Hotkey = "X"; Action = "Compression" }
-            [pscustomobject]@{ Label = "[Q] Texture sharpness slider"; Hotkey = "Q"; Action = "PicMip" }
-            [pscustomobject]@{ Label = "[S] Skybox cleanup preset"; Hotkey = "S"; Action = "SkyFix" }
-            [pscustomobject]@{ Label = "[V] FOV slider"; Hotkey = "V"; Action = "Fov" }
-            [pscustomobject]@{ Label = "[A] Apply game settings"; Hotkey = "A"; Action = "Apply" }
-            [pscustomobject]@{ Label = "[C] Cancel"; Hotkey = "C"; Action = "Cancel" }
-        )
-        #Presets Going in (Make it easier for the user)
-        $action = Invoke-ArrowMenu $items "Game settings: arrows + Enter, then A to apply or C to cancel."
-        switch ($action) {
-            "Resolution" {
-                $resolution = Invoke-ResolutionSelector $draft
-                if ($resolution) {
-                    $draft.ResolutionWidth = $resolution.Width
-                    $draft.ResolutionHeight = $resolution.Height
-                    $draft.Fullscreen = 1
-                    $draft.ColorBits = 32
-                    $draft.TextureBits = 32
-                    $message = $resolution.Label
+            "GameSpy" { $draft.SvGameSpy = Invoke-ToggleSelector "Server browser / GameSpy" $draft.SvGameSpy "On" "Off"; $message = "Server browser visibility updated in draft." }
+            "Rates" {
+                $draft.SvMaxRate = Read-SettingInt "sv_maxRate, 0 means unlimited" $draft.SvMaxRate 0 25000
+                $draft.SvMinRate = Read-SettingInt "sv_minRate, 0 means no minimum" $draft.SvMinRate 0 25000
+                $message = "Rate limits updated in draft."
+            }
+            "Pings" {
+                $draft.SvMinPing = Read-SettingInt "sv_minPing, 0 means no minimum" $draft.SvMinPing 0 999
+                $draft.SvMaxPing = Read-SettingInt "sv_maxPing, 0 means no maximum" $draft.SvMaxPing 0 999
+                $message = "Ping limits updated in draft."
+            }
+            "Private" {
+                $draft.SvPrivateClients = Read-SettingInt "Reserved private slots" $draft.SvPrivateClients 0 $draft.MaxPlayers
+                $draft.SvPrivatePassword = Read-SettingText "Private slot password, blank means none" $draft.SvPrivatePassword
+                $message = "Private slot settings updated in draft."
+            }
+            "Rcon" { $draft.RconPassword = Read-SettingText "RCON password, blank disables remote admin password" $draft.RconPassword; $message = "RCON password updated in draft." }
+            "Flood" { $draft.SvFloodProtect = Invoke-ToggleSelector "Flood protect" $draft.SvFloodProtect "On" "Off"; $message = "Flood protect updated in draft." }
+            "TeamDamage" { $draft.TeamDamage = Invoke-VisualSlider "Team damage: 0 off, 1 friendly, 2 reflect, 3 both" $draft.TeamDamage 0 3 1 1 ""; $message = "Team damage updated in draft." }
+            "Advanced" {
+                $advanced = Edit-AdvancedCvarsTui $draft
+                if ($advanced.Applied) {
+                    $draft.AdvancedCvars = $advanced.Settings.AdvancedCvars
+                    $message = "Advanced cvars updated in draft."
                 } else {
-                    $message = "Resolution unchanged."
+                    $message = "Advanced cvars canceled."
                 }
             }
-            "Fullscreen" { $draft.Fullscreen = Invoke-ToggleSelector "Fullscreen" $draft.Fullscreen "On" "Off"; $message = "Fullscreen updated in draft." }
-            "TextureBits" { $draft.TextureBits = Invoke-TextureBitsSelector $draft.TextureBits; $message = "Texture bits updated in draft." }
-            "Compression" { $draft.TextureCompression = Invoke-ToggleSelector "Texture compression" $draft.TextureCompression "On" "Off"; $message = "Texture compression updated in draft." }
-            "PicMip" { $draft.PicMip = Invoke-VisualSlider "Texture sharpness / picmip" $draft.PicMip 0 5 1 1 ""; $message = "Picmip updated in draft." }
-            "SkyFix" {
-                $draft.FastSky = 0
-                $draft.TextureCompression = 0
-                $draft.TextureBits = 32
-                $draft.ColorBits = 32
-                $draft.PicMip = 0
-                $draft.TextureMode = "gl_linear_mipmap_linear"
-                $message = "Skybox cleanup preset selected: fast sky off, compression off, 32-bit textures."
-            }
-            "Fov" { $draft.Fov = Invoke-VisualSlider "FOV" $draft.Fov 80 120 1 5 ""; $message = "FOV cvar updated in draft." }
             "Apply" { return [pscustomobject]@{ Applied = $true; Settings = (Normalize-Settings $draft) } }
             "Cancel" { return [pscustomobject]@{ Applied = $false; Settings = $CurrentSettings } }
         }
@@ -1111,25 +1322,34 @@ function Show-GameSelector($Settings) {
         Write-Host ""
         Write-Host "  CHOOSE GAME TO HOST" -ForegroundColor Cyan
         Write-Host "  =====================================" -ForegroundColor DarkCyan
-        Write-Host "  Current support: Medal of Honor: Allied Assault" -ForegroundColor Gray
+        Write-Host "  Choose original MOHAA or OpenMoHAA. OpenMoHAA provides modern rendering and extra compatibility." -ForegroundColor Gray
         if ($message) {
             Write-Host ""
             Write-Host "  $message" -ForegroundColor Yellow
         }
 
-        $items = @(
-            [pscustomobject]@{ Label = "[1] Medal of Honor: Allied Assault"; Hotkey = "1"; Action = "mohaa" }
-            [pscustomobject]@{ Label = "[2] Spearhead - Coming soon"; Hotkey = "2"; Action = "spearhead" }
-            [pscustomobject]@{ Label = "[3] Breakthrough - Coming soon"; Hotkey = "3"; Action = "breakthrough" }
-        )
-
-        $choice = Invoke-ArrowMenu $items "Select a game. Unsupported games return here."
-        if ($choice -eq "mohaa") {
-            $Settings.SelectedGame = "mohaa"
-            return "Medal of Honor: Allied Assault selected."
+        $items = @()
+        $index = 1
+        foreach ($profile in Get-GameProfiles) {
+            $serverPath = Join-Path $GameDir $profile.ServerExeName
+            $gamePath = Join-Path $GameDir $profile.GameExeName
+            $state = if ((Test-Path $serverPath) -and (Test-Path $gamePath)) { "ready" } elseif (Test-Path $serverPath) { "server only" } else { "missing server exe" }
+            $items += [pscustomobject]@{ Label = "[$index] $($profile.Label) - $state"; Hotkey = "$index"; Action = $profile.Id }
+            $index++
         }
 
-        $message = "That game is installed but not supported by this runner yet."
+        $choice = Invoke-ArrowMenu $items "Select a game profile."
+        $profile = Get-GameProfile $choice
+        $Settings.ProfileId = $profile.Id
+        $Settings.SelectedGame = $profile.Id
+        $Settings.ServerExeName = $profile.ServerExeName
+        $Settings.GameExeName = $profile.GameExeName
+        if ($Settings.MatchMode -notin @($profile.Modes)) {
+            Set-MatchModePreset $Settings "ffa"
+        } else {
+            Set-MatchModePreset $Settings $Settings.MatchMode
+        }
+        return "$($profile.Label) selected."
     }
 }
 
@@ -1178,18 +1398,26 @@ if ($NoMenu) {
 
 $message = ""
 while ($true) {
+    $profile = Get-SelectedProfile $settings
+    $isRunning = (Get-ServerProcess $settings).Count -gt 0
+    
     $menu = @(
-        [pscustomobject]@{ Label = "[G] Open MOHAA"; Hotkey = "G"; Action = "Game" }
+        [pscustomobject]@{ Label = "[G] Open $($profile.Label)"; Hotkey = "G"; Action = "Game" }
         [pscustomobject]@{ Label = "[C] Copy friend command"; Hotkey = "C"; Action = "Copy" }
         [pscustomobject]@{ Label = "[E] Server settings"; Hotkey = "E"; Action = "Settings" }
-        [pscustomobject]@{ Label = "[V] Game settings"; Hotkey = "V"; Action = "GameSettings" }
         [pscustomobject]@{ Label = "[N] Network details"; Hotkey = "N"; Action = "Network" }
         [pscustomobject]@{ Label = "[H] How to host"; Hotkey = "H"; Action = "Help" }
-        [pscustomobject]@{ Label = "[R] Restart server"; Hotkey = "R"; Action = "Restart" }
-        [pscustomobject]@{ Label = "[B] Rebuild config"; Hotkey = "B"; Action = "Build" }
-        [pscustomobject]@{ Label = "[S] Stop server"; Hotkey = "S"; Action = "Stop" }
-        [pscustomobject]@{ Label = "[Q] Quit launcher"; Hotkey = "Q"; Action = "Quit" }
     )
+
+    if ($isRunning) {
+        $menu += [pscustomobject]@{ Label = "[R] Restart server"; Hotkey = "R"; Action = "Restart" }
+        $menu += [pscustomobject]@{ Label = "[S] Stop server"; Hotkey = "S"; Action = "Stop" }
+    } else {
+        $menu += [pscustomobject]@{ Label = "[S] Start server"; Hotkey = "S"; Action = "Start" }
+    }
+    
+    $menu += [pscustomobject]@{ Label = "[M] Change game"; Hotkey = "M"; Action = "ChangeGame" }
+    $menu += [pscustomobject]@{ Label = "[Q] Quit launcher"; Hotkey = "Q"; Action = "Quit" }
 
     $action = Invoke-ArrowMenu $menu
     switch ($action) {
@@ -1211,16 +1439,6 @@ while ($true) {
                 $message = "Settings canceled. No changes applied."
             }
         }
-        "GameSettings" {
-            $result = Edit-GameSettingsTui $settings
-            if ($result.Applied) {
-                $settings = $result.Settings
-                Save-Settings $settings
-                $message = Apply-GameSettings $settings
-            } else {
-                $message = "Game settings canceled. No changes applied."
-            }
-        }
         "Restart" {
             Stop-Server $settings
             $startResult = Start-Server $settings
@@ -1228,17 +1446,25 @@ while ($true) {
             $configState = $startResult.ConfigState
             $message = "Server restarted."
         }
-        "Build" {
-            Stop-Server $settings
+        "Start" {
             $startResult = Start-Server $settings -ForceConfig
             $process = $startResult.Process
             $configState = $startResult.ConfigState
-            $message = "Config rebuilt and server restarted." 
+            $message = "Server started."
         }
         "Stop" {
             Stop-Server $settings
             $process = $null
-            $message = "Server stopped." #Stoping the MOHAA_server
+            $message = "Server stopped." 
+        }
+        "ChangeGame" {
+            Stop-Server $settings
+            $msg = Show-GameSelector $settings
+            Save-Settings $settings
+            $startResult = Start-Server $settings -ForceConfig
+            $process = $startResult.Process
+            $configState = $startResult.ConfigState
+            $message = "$msg New server started."
         }
         "Quit" {
             Clear-Host
@@ -1246,7 +1472,7 @@ while ($true) {
             Write-Host "  IMUSTAFSKI Server Runner closed." -ForegroundColor Cyan
             Write-Host "  Server process is unchanged. Use Stop server before Quit if you want to stop hosting." -ForegroundColor DarkGray
             exit 0
-        } #Quiting Existing from the terminal at all not to the cmd main
+        }
     }
 
     Show-Dashboard $settings (Get-ServerProcess $settings | Select-Object -First 1) $configState $message
